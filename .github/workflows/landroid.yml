@@ -1,0 +1,50 @@
+name: Android APK
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Bağımlılıkları kur
+        run: npm install
+
+      - name: Android projesi yoksa oluştur
+        run: |
+          if [ ! -d android ]; then npx cap add android; fi
+
+      - name: Mikrofon iznini ekle
+        run: |
+          f=android/app/src/main/AndroidManifest.xml
+          grep -q RECORD_AUDIO $f || sed -i 's#<application#<uses-permission android:name="android.permission.RECORD_AUDIO" />\n    <application#' $f
+
+      - name: İkonları üret
+        run: npx @capacitor/assets generate --android
+
+      - name: Web dosyalarını ve eklentileri senkronla
+        run: npx cap sync android
+
+      - name: APK üret
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: prompt-olustur-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
